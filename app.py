@@ -60,6 +60,7 @@ if uploaded_file:
         merger = PdfMerger()
         valid_pdfs = 0
         merge_info = []
+        pdf_selection = {}  # To store checkboxes for each PDF
 
         # Process each PDF file
         for pdf in pdf_files:
@@ -83,35 +84,44 @@ if uploaded_file:
             match_percentage = (len(matched_keywords) / len(selected_keywords)) * 100
 
             if match_percentage >= threshold:
-                merger.append(pdf_path)  # Merge only if match percentage >= threshold
+                pdf_selection[pdf] = st.checkbox(f"{pdf}", value=True)
                 valid_pdfs += 1
-                merge_info.append((pdf, matched_keywords, len(matched_keywords), len(selected_keywords), match_percentage))
+                merge_info.append((pdf, matched_keywords, len(matched_keywords), len(selected_keywords), match_percentage, pdf_path))
 
         if valid_pdfs > 0:
             # Display PDFs to merge and matched keywords
             st.write("### PDFs to Merge and Their Matched Keywords:")
-            for pdf, keywords, match_count, total_keywords, percentage in merge_info:
-                st.markdown(
-                    f"""
-                    <b><span style="color:red;">**{pdf}**%</span><b> - {match_count}/{total_keywords} - {percentage:.2f}
-                    \n**Keywords:** {', '.join(keywords)}
-                    \n---""",
-                    unsafe_allow_html=True
+            for pdf, keywords, match_count, total_keywords, percentage, pdf_path in merge_info:
+                if pdf_selection[pdf]:  # Only display selected PDFs
+                    st.markdown(
+                        f"""
+                        <b><span style="color:red;">**{pdf}**</span><b>
+                        \n**Keywords:** {', '.join(keywords)}
+                        \n---""",
+                        unsafe_allow_html=True
+                    )
+
+            # Merge selected PDFs
+            selected_pdfs = [pdf_path for pdf, _, _, _, _, pdf_path in merge_info if pdf_selection[pdf]]
+            if selected_pdfs:
+                # Output combined PDF to a BytesIO object
+                for pdf_path in selected_pdfs:
+                    merger.append(pdf_path)
+
+                combined_pdf = BytesIO()
+                merger.write(combined_pdf)
+                merger.close()
+                combined_pdf.seek(0)
+
+                # Provide download link for the combined PDF
+                st.download_button(
+                    label="Download Combined PDF",
+                    data=combined_pdf,
+                    file_name="combined.pdf",
+                    mime="application/pdf"
                 )
-
-            # Output combined PDF to a BytesIO object
-            combined_pdf = BytesIO()
-            merger.write(combined_pdf)
-            merger.close()
-            combined_pdf.seek(0)
-
-            # Provide download link for the combined PDF
-            st.download_button(
-                label="Download Combined PDF",
-                data=combined_pdf,
-                file_name="combined.pdf",
-                mime="application/pdf"
-            )
+            else:
+                st.write("No PDFs selected for merging.")
         else:
             st.write("No PDFs matched the criteria.")
     else:
